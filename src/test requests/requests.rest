@@ -1,0 +1,30 @@
+### These requests can be used to test the REST API using the REST Client Extention in VS Code
+
+### Login using credentials
+POST HTTP://localhost:5000/login
+Content-Type: application/json
+
+{
+    "username":"user2"
+}
+
+### generate a new access token using the refresh token
+POST HTTP://localhost:5000/token
+Content-Type: application/json
+
+{
+    "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InVzZXIyIiwiaWF0IjoxNjk5NDUxNjk1LCJleHAiOjE2OTk0NTE4MTV9.pCEB-Sbjyq2pdqM9ApDQYPpe1Nvp6fhlq627Fw6ihow"
+}
+
+### logout by deleting the refresh token from the approved token list
+DELETE HTTP://localhost:5000/logout
+Content-Type: application/json
+
+{
+    "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InVzZXIyIiwiaWF0IjoxNjk5NDUxNjk1LCJleHAiOjE2OTk0NTE4MTV9.pCEB-Sbjyq2pdqM9ApDQYPpe1Nvp6fhlq627Fw6ihow"
+}
+
+
+### get task list for each user. works only if user is authenticated already. Request must include a valid access token
+GET HTTP://localhost:5000/getUserTaskList
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InVzZXIyIiwiaWF0IjoxNjk5NDUxNjc0LCJleHAiOjE2OTk0NTE3MzR9.W9kIraO-tF0JxNUj19uhTRWsjU4b8qyOIY3AfUakzWo
