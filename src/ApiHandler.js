@@ -25,7 +25,7 @@ class ApiHandler
 
 	setupAuthenticatedHandlers() // all API calls must pass by the authenticateToken middle-ware function
 	{
-		this.app.get('/getUserTaskList', this.authenticateToken, this.getUserTaskList);
+		this.app.get('/getUserTaskList', this.authenticateToken, this.getUserTaskList); // authenticateToken function is the middleware to verify the token is valid
 	}
 
 	// ---------- This is the authentication middle-ware function. It ensures that any request is being done be an authenticated user.
@@ -52,7 +52,7 @@ class ApiHandler
 		
 		const accessToken = this.generateAccessToken(user);
 		const refreshToken = jwt.sign(user, process.env.REFRESH_TOKEN_SECRET, {expiresIn: '120s'});
-		this.refreshTokens.push(refreshToken);
+		this.refreshTokens.push(refreshToken); // refresh token to be inserted in approved token table in database
 		res.json({ accessToken: accessToken, refreshToken: refreshToken });
 	}
 	
@@ -66,7 +66,7 @@ class ApiHandler
 	{
 		const refreshToken = req.body.token;
 		if(refreshToken == null) return res.sendStatus(401); // 401 (Unauthorized): Request must have refresh token
-		if(!this.refreshTokens.includes(refreshToken)) return res.sendStatus(403); // 403 (Forbidden): Authentication failed. Token is revoked.
+		if(!this.refreshTokens.includes(refreshToken)) return res.sendStatus(403); // 403 (Forbidden): Authentication failed. Token is revoked and no longer available in approved token register in database.
 		jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
 			if(err) return res.sendStatus(403); // 403 (Forbidden): User authentication failed
 			const accessToken = this.generateAccessToken({ username: user.username });
@@ -76,7 +76,7 @@ class ApiHandler
 
 	deleteRefreshToken(req,res)
 	{
-		this.refreshTokens = this.refreshTokens.filter(token => token!==req.body.token);
+		this.refreshTokens = this.refreshTokens.filter(token => token!==req.body.token); // delete refresh token from the approved token table in database
 		res.sendStatus(204); // 204 (No Content): Refresh token revoked.
 	}
 

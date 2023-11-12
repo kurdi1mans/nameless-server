@@ -19,7 +19,7 @@ class MySQL
 	{
 		return new Promise((resolve, reject) => 
 		{
-			pool.getConnection((err, connection) => 
+			this.pool.getConnection((err, connection) => 
 			{
 				if(err)
 				{
@@ -27,14 +27,22 @@ class MySQL
 				}
 				else
 				{
+					console.log(`MySQL pool threadId#${connection.threadId}: connected`);
 					const query = (sql, binding) => 
 					{
 						return new Promise((resolve, reject) => 
 						{
 							connection.query(sql, binding, (err, result) => 
 							{
-								if(err) reject(err);
-								resolve(result);
+								if(err)
+								{
+									reject(err);
+								}
+								else
+								{
+									// console.log(`MySQL pool threadId#${connection.threadId}: query executed`);
+									resolve(result);
+								}
 							});
 						});
 					};
@@ -43,7 +51,7 @@ class MySQL
 						return new Promise((resolve, reject) => 
 						{
 							if(err) reject(err);
-							console.log("MySQL pool released: threadId " + connection.threadId);
+							console.log(`MySQL pool threadId#${connection.threadId}: released`);
 							resolve(connection.release());
 						});
 					};
@@ -53,23 +61,24 @@ class MySQL
 		});
 	}
 	
-	query(sql, binding)
-	{
-		return new Promise((resolve, reject) => 
-		{
-			pool.query(sql, binding, (err, result, fields) => 
-			{
-				if(err)
-				{
-					reject(err);
-				}
-				else
-				{
-					resolve(result);
-				}
-			});
-		});
-	}
+	// query(sql, binding)
+	// {
+	// 	return new Promise((resolve, reject) => 
+	// 	{
+	// 		this.pool.query(sql, binding, (err, result, fields) => 
+	// 		{
+	// 			if(err)
+	// 			{
+	// 				reject(err);
+	// 			}
+	// 			else
+	// 			{
+	// 				console.log(`MySQL pool threadId#${connection.threadId}: query executed`);
+	// 				resolve(result);
+	// 			}
+	// 		});
+	// 	});
+	// }
 }
 
 

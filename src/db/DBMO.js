@@ -1,4 +1,4 @@
-const mysql = require("./mysql.js");
+const MySQL = require("./MySQL.js");
 
 class DBMO
 {

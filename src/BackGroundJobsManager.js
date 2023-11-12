@@ -1,4 +1,5 @@
-const HelperFunctions = require('./HelperFunctions')
+const HelperFunctions = require('./HelperFunctions');
+const DatabaseSetup = require('./db/DatabaseSetup');
 
 class BackGroundJobsManager
 {
