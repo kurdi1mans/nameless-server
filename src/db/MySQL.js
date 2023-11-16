@@ -60,25 +60,6 @@ class MySQL
 			});
 		});
 	}
-	
-	// query(sql, binding)
-	// {
-	// 	return new Promise((resolve, reject) => 
-	// 	{
-	// 		this.pool.query(sql, binding, (err, result, fields) => 
-	// 		{
-	// 			if(err)
-	// 			{
-	// 				reject(err);
-	// 			}
-	// 			else
-	// 			{
-	// 				console.log(`MySQL pool threadId#${connection.threadId}: query executed`);
-	// 				resolve(result);
-	// 			}
-	// 		});
-	// 	});
-	// }
 }
 
 

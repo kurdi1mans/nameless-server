@@ -16,6 +16,7 @@ class DatabaseSetup
 		await this.createTokenRegisterTable();
 		await this.createIndexForUserID();
 		await this.createTokenRegisterUserReference();
+		await this.insertInitialUsers();
 	}
 
 
@@ -104,7 +105,8 @@ class DatabaseSetup
 				Password varchar(255),
 				Email varchar(255),
 				Phone varchar(20),
-				Status varchar(255)
+				Status varchar(255),
+				CreationDate DATETIME
 			);`;
 	
 			const createUserQueryResult = await conn.query(createUserQueryText);	
@@ -125,7 +127,8 @@ class DatabaseSetup
 			const conn = await MySQL.connection();
 			const createTokenRegisterQueryText = `CREATE TABLE TokenRegister (
 				UserID varchar(255),
-				Token varchar(255)
+				Token varchar(255),
+				CreationDate DATETIME
 			);`;
 	
 			const createTokenRegisterQueryResult = await conn.query(createTokenRegisterQueryText);	
@@ -182,14 +185,13 @@ class DatabaseSetup
 		if(!operationDone)
 		{
 			const conn = await MySQL.connection();
-			const queryText = `ALTER TABLE TokenRegister
-			ADD CONSTRAINT FK_UserID
-			FOREIGN KEY (UserID) REFERENCES User(ID)
-			ON DELETE RESTRICT
-			ON UPDATE CASCADE;`;
-	
-			const queryResult = await conn.query(queryText);	
+			const queryText = `insert into User (ID, FirstName, LastName, UserName, Password, Email, Phone, Status, CreationDate) values (?,?,?,?,?,?,?,?,?)`;
 
+			const nowTimeStamp = HF.jsDateTimeToMySQLDataTime(new Date());
+	
+			const queryResult1 = await conn.query(queryText,['01HF42NYMD57K7W4BDH84YK5ZP','Fulan','Fulani','Fulan.Fulani','$2b$08$U.2GqUUV41zTMNzaSe.7uOAJmgU0wNC57NeqNhh36t4VrAyUXu626','Fulan.Fulani@company.com','+966512345678','Active',nowTimeStamp]);	
+			const queryResult2 = await conn.query(queryText,['01HF42RX64DQ9VHM5F6VXS29SQ','Ellan','Ellani','Ellan.Ellani','$2b$08$U.2GqUUV41zTMNzaSe.7uOAJmgU0wNC57NeqNhh36t4VrAyUXu626','Ellan.Ellani@company.com','+966523456789','Active',nowTimeStamp]);	
+			
 			this.insertOperationInfo('01HF1VJDWQ7Z38VGN409W78MAC','insertInitialUsers','Insert some initial users for testing');
 
 			conn.release();

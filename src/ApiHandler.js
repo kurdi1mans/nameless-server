@@ -2,6 +2,9 @@ const ULID = require('ulid')
 const FunctionalFacade = require('./FunctionalFacade');
 const HelperFunctions = require('./HelperFunctions');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const DBAO = require('./db/DBAO');
+const MySQL = require('./db/MySQL');
 
 class ApiHandler
 {
@@ -10,8 +13,6 @@ class ApiHandler
 		this.app = app;
 		this.setupPublicHandlers();
 		this.setupAuthenticatedHandlers();
-
-		this.refreshTokens = [];
 	}
 
 	// ---------- Setup Handlers for public and authenticated requests
@@ -43,41 +44,143 @@ class ApiHandler
 	}
 
 	// ---------- Handler Functions
-	login(req, res) // This handler will allow login for a user given the user user credentials
+	async login(req, res) // This handler will allow login for a user given the user user credentials
 	{
-		const username = req.body.username;
-		//hash the password and ensure the user is who he claims to be
 
-		const user = { username: username };
+		const username = req.body.username;
+		const password = req.body.password;
+
+		const conn = await MySQL.connection();
 		
-		const accessToken = this.generateAccessToken(user);
-		const refreshToken = jwt.sign(user, process.env.REFRESH_TOKEN_SECRET, {expiresIn: '120s'});
-		this.refreshTokens.push(refreshToken); // refresh token to be inserted in approved token table in database
-		res.json({ accessToken: accessToken, refreshToken: refreshToken });
+		let db_user = await DBAO.getFullUserRecord(username,conn);
+		
+		if(db_user.length>0)
+		{
+			db_user = db_user[0];
+
+			const isMatch = await bcrypt.compare(password,db_user.Password);
+
+			if(isMatch)
+			{
+				const tokenContent = { user_id:db_user.ID, username: db_user.UserName };
+		
+				const accessToken = this.generateAccessToken(tokenContent);
+				const refreshToken = jwt.sign(tokenContent, process.env.REFRESH_TOKEN_SECRET, {expiresIn: '120s'});
+				
+				await DBAO.insertUserToken(db_user.ID,refreshToken,conn);
+
+				res.json({ accessToken: accessToken, refreshToken: refreshToken });
+			}
+			else
+			{
+				res.sendStatus(401); // 401 (Unauthorized): password is incorrect
+			}			
+		}
+		else
+		{
+			res.sendStatus(401); // 401 (Unauthorized): username not found
+		}
+
+		conn.release();
 	}
 	
-	generateAccessToken(user) // This function generates an access token (short-lived token).
+	generateAccessToken(tokenContent) // This function generates an access token (short-lived token).
 	{
-		const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '60s'})
+		const accessToken = jwt.sign(tokenContent, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '60s'})
 		return accessToken;
 	}
 
-	generateNewAccessToken(req,res) // This handler generates a new access token (short-lived token) given a refresh token (long-lived token).
+	async generateNewAccessToken(req,res) // This handler generates a new access token (short-lived token) given a refresh token (long-lived token).
 	{
 		const refreshToken = req.body.token;
-		if(refreshToken == null) return res.sendStatus(401); // 401 (Unauthorized): Request must have refresh token
-		if(!this.refreshTokens.includes(refreshToken)) return res.sendStatus(403); // 403 (Forbidden): Authentication failed. Token is revoked and no longer available in approved token register in database.
-		jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
-			if(err) return res.sendStatus(403); // 403 (Forbidden): User authentication failed
-			const accessToken = this.generateAccessToken({ username: user.username });
-			res.json({accessToken: accessToken});
-		});
+
+		if(refreshToken == null)
+		{
+			return res.sendStatus(401); // 401 (Unauthorized): Request must have refresh token
+		}
+		else
+		{
+			jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, async (err, user) => {
+				const conn = await MySQL.connection();
+
+				if(err)
+				{
+					if(err.name === 'TokenExpiredError')
+					{
+						await DBAO.deleteToken(refreshToken,conn);
+					}
+
+					conn.release();
+					return res.sendStatus(403); // 403 (Forbidden): User authentication failed. Token is invalid.
+				}
+				else
+				{
+					const userTokens = await DBAO.getUserTokens(user.user_id,conn);
+					const result = userTokens.find( item => item.Token === refreshToken); // check if the provided refresh token is in the TokenRegister
+					
+					if(result===undefined)
+					{
+						conn.release();
+						return res.sendStatus(403); // 403 (Forbidden): Authentication failed. Token is revoked and no longer available in approved token register in database.
+					}
+					else
+					{
+						const accessToken = this.generateAccessToken({ user_id:user.user_id, username: user.username });
+
+						conn.release();
+						res.json({accessToken: accessToken});
+					}
+				}	
+			});
+		}
 	}
 
 	deleteRefreshToken(req,res)
 	{
-		this.refreshTokens = this.refreshTokens.filter(token => token!==req.body.token); // delete refresh token from the approved token table in database
-		res.sendStatus(204); // 204 (No Content): Refresh token revoked.
+		const refreshToken = req.body.token;
+
+		if(refreshToken == null)
+		{
+			return res.sendStatus(401); // 401 (Unauthorized): Request must have refresh token
+		}
+		else
+		{
+			jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, async (err, user) => {	
+				
+				const conn = await MySQL.connection();
+
+				if(err)
+				{
+					if(err.name === 'TokenExpiredError')
+					{
+						await DBAO.deleteToken(refreshToken,conn);
+					}
+					
+					conn.release();
+					return res.sendStatus(403); // 403 (Forbidden): User authentication failed. Token is invalid.
+				}
+				else
+				{
+					const userTokens = await DBAO.getUserTokens(user.user_id,conn);
+					const result = userTokens.find( item => item.Token === refreshToken); // check if the provided refresh token is in the TokenRegister
+					
+					if(result===undefined)
+					{
+						conn.release();
+						return res.sendStatus(403); // 403 (Forbidden): Authentication failed. Token is revoked and no longer available in approved token register in database.
+					}
+					else
+					{
+						// const accessToken = this.generateAccessToken({ user_id:user.user_id, username: user.username });
+	
+						await DBAO.deleteToken(refreshToken,conn);
+						
+						conn.release();
+						res.sendStatus(204); // 204 (No Content): Refresh token revoked.
+					}
+				}
+			});
+		}
 	}
 
 	getUserTaskList(req,res)
@@ -85,37 +188,37 @@ class ApiHandler
 		const usersTaskList = [
 			{
 				task_id:1,
-				username:'user1',
+				username:'Fulan.Fulani',
 				taskTitle:'Task A'
 			},
 			{
                 task_id:2,
-                username:'user1',
+                username:'Fulan.Fulani',
                 taskTitle:'Task B'
             },
 			{
                 task_id:3,
-                username:'user1',
+                username:'Fulan.Fulani',
                 taskTitle:'Task C'
             },
 			{
                 task_id:4,
-                username:'user2',
+                username:'Ellan.Ellani',
                 taskTitle:'Task D'
             },
 			{
                 task_id:5,
-                username:'user2',
+                username:'Ellan.Ellani',
                 taskTitle:'Task E'
             },
 			{
                 task_id:6,
-                username:'user2',
+                username:'Ellan.Ellani',
                 taskTitle:'Task F'
             },
 			{
                 task_id:7,
-                username:'user2',
+                username:'Ellan.Ellani',
                 taskTitle:'Task G'
             }
 		];
